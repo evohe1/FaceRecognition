@@ -2,8 +2,12 @@
 
 using FaceRecognitionConsumer;
 using MassTransit;
+using MassTransit.AspNetCoreIntegration;
+using MassTransit.Transports.Fabric;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 Console.WriteLine("Hello, World!");
 var configuration = new ConfigurationBuilder()
@@ -11,31 +15,38 @@ var configuration = new ConfigurationBuilder()
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .Build();
 var rabbitMqOptions = configuration.GetSection("RabbitMQ").Get<RabbitMqOptions>();
-var busControl = Bus.Factory.CreateUsingRabbitMq(cfg =>
-{
-    cfg.Host(rabbitMqOptions.Host, h =>
-    {
-        h.Username(rabbitMqOptions.Username);
-        h.Password(rabbitMqOptions.Password);
-    });
+var host = Host.CreateDefaultBuilder(args)
+                .ConfigureServices((context, services) =>
+                {
+                    services.AddMassTransit(x =>
+                    {
+                        x.AddConsumer<FileConsumer>();
 
-    cfg.ReceiveEndpoint("queue:faceRecognition", e =>
-    {
-        e.Consumer<MessageConsumer>();
-    });
-});
+                        x.UsingRabbitMq((ctx, cfg) =>
+                        {
+                            cfg.Host(rabbitMqOptions.Host, h =>
+                            {
+                                h.Username(rabbitMqOptions.Username);
+                                h.Password(rabbitMqOptions.Password);
+                            });
 
-// Bus başlat
-await busControl.StartAsync();
-try
-{
-    Console.WriteLine("Press enter to exit");
-    await Task.Run(() => Console.ReadLine());
+                            cfg.ReceiveEndpoint("file-upload-queue", e =>
+                            {
+                                
+                                e.ConfigureConsumer<FileConsumer>(ctx);
+                            });
+                            cfg.ConfigureEndpoints(ctx);
+                        });
+                    });
 
-    // Mesaj gönder
-    await busControl.Publish(new Message { Text = "Hello, World!" });
-}
-finally
-{
-    await busControl.StopAsync();
-}
+                   
+
+                    services.AddLogging(configure => configure.AddConsole());
+                })
+                .Build();
+
+await host.RunAsync();
+        
+
+
+

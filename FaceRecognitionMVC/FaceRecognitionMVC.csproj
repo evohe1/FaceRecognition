@@ -15,4 +15,8 @@
     <Folder Include="NewFolder\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FaceRecognition.Shared\FaceRecognition.Shared.csproj" />
+  </ItemGroup>
+
 </Project>
